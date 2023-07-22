@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera App with FastAPI Integration</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            background-color: #000;
+        }
+
+        /* Custom styles for the camera view */
+        #cameraView {
+            width: 100%;
+            height: 100vh;
+            max-height: calc(100vh - 100px); /* Adjust max-height for better mobile view */
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Custom styles for the circular capture button */
+        #captureButton {
+            width: 150px;
+            height: 150px;
+            background-color: white;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 4vh; /* Adjust bottom position for better mobile view */
+            cursor: pointer;
+        }
+
+        /* Custom styles for the camera switch button */
+        #switchButton {
+            width: 50px;
+            height: 50px;
+            background-color: #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 5vh; /* Adjust bottom position for better mobile view */
+            right: 30px;
+            cursor: pointer;
+        }
+
+        /* Custom styles for button icons */
+        .button-icon {
+            display: block;
+            width: 100%;
+            height: 100%;
+            fill: white;
+        }
+
+        /* Custom styles for the start button on iOS */
+        #startButton {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        /* Mobile responsiveness */
+        @media only screen and (max-width: 768px) {
+            /* Adjust styles for smaller screens */
+            #captureButton {
+                width: 80px;
+                height: 80px;
+                bottom: 10vh;
+            }
+
+            #switchButton {
+                width: 35px;
+                height: 35px;
+                bottom: 10vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="cameraView">
+        <video id="video" width="100%" height="100%" autoplay playsinline></video>
+        <!-- Circular capture button -->
+        <div id="captureButton"></div>
+        <!-- Camera switch button -->
+        <div id="switchButton">
+            <!-- <svg class="button-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2c3.32 0 6 2.69 6 6v8c0 3.31-2.68 6-6 6s-6-2.69-6-6v-8c0-3.31 2.68-6 6-6zm0 2c-3.07 0-5.66 2.01-6.59 4.77l1.47.36c.71-2.81 3.34-4.87 6.12-4.87 3.48 0 6.31 2.82 6.31 6.31s-2.82 6.31-6.31 6.31c-2.78 0-5.41-2.06-6.12-4.87l-1.47.36c.93 2.76 3.52 4.77 6.59 4.77 4.42 0 8-3.58 8-8s-3.58-8-8-8zm0 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/></svg> -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="button-icon" width="45" height="45" viewBox="0 0 512 512"><title>ionicons-v5-e</title><path d="M350.54,148.68l-26.62-42.06C318.31,100.08,310.62,96,302,96H210c-8.62,0-16.31,4.08-21.92,10.62l-26.62,42.06C155.85,155.23,148.62,160,140,160H80a32,32,0,0,0-32,32V384a32,32,0,0,0,32,32H432a32,32,0,0,0,32-32V192a32,32,0,0,0-32-32H373C364.35,160,356.15,155.23,350.54,148.68Z" style="fill:none;stroke:#000;stroke-linecap:round;stroke-linejoin:round;stroke-width:32px"/><polyline points="124 158 124 136 100 136 100 158" style="fill:none;stroke:#000;stroke-linecap:round;stroke-linejoin:round;stroke-width:32px"/><path d="M335.76,285.22V271.91a80,80,0,0,0-131-61.6M176,258.78v13.31a80,80,0,0,0,130.73,61.8" style="fill:none;stroke:#000;stroke-linecap:round;stroke-linejoin:round;stroke-width:32px"/><polyline points="196 272 176 252 156 272" style="fill:none;stroke:#000;stroke-linecap:round;stroke-linejoin:round;stroke-width:32px"/><polyline points="356 272 336 292 316 272" style="fill:none;stroke:#000;stroke-linecap:round;stroke-linejoin:round;stroke-width:32px"/></svg>
+              
+        </div>
+    </div>
+    <!-- <div id="result"></div> -->
+
+    <script>
+        let currentFacingMode = 'environment';
+
+        async function initCamera() {
+            const video = document.getElementById('video');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } });
+                video.srcObject = stream;
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const frontCamera = devices.find(device => device.kind === 'videoinput' && device.label.toLowerCase());
+                
+            } catch (err) {
+                console.error('Error accessing the camera:', err);
+            }
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById('video');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+            sendPhoto(dataURL);
+        }
+
+        async function sendPhoto(photoData) {
+            try {
+                const response = await fetch('/predict/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ image_data: photoData }),
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    window.location.href = `result.html?prediction=${encodeURIComponent(result.prediction)}`;
+                } else {
+                    console.error('Request failed with status:', response.status);
+                }
+            } catch (error) {
+                console.error('Error sending the prediction request:', error);
+            }
+        }
+
+        function switchCamera() {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            initCamera();
+        }
+
+        // Initialize the camera
+        initCamera();
+
+        // Add click event to the capture button
+        const captureButton = document.getElementById('captureButton');
+        captureButton.addEventListener('click', capturePhoto);
+
+        // Add click event to the camera switch button
+        const switchButton = document.getElementById('switchButton');
+        switchButton.addEventListener('click', switchCamera);
+    </script>
+</body>
+</html>
